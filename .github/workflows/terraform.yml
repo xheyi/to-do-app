@@ -1,0 +1,148 @@
+name: eks infrastructure and application deployment
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+    contents: read 
+    id-token: write
+
+env:
+    AWS_REGION: eu-north-1
+    CLUSTER_NAME: eks-cluster
+    BUCKET_NAME: xheyi-eks-terraform-state
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout code
+              uses: actions/checkout@v4
+
+            - name: configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                role-to-assume: ${{secrets.AUTH_ROLE}}
+                aws-region: ${{env.AWS_REGION}}
+
+            - name: setup terraform
+              uses: hashicorp/setup-terraform@v2
+              with:
+                terraform_version: 1.7.6
+
+            - name: Check and Create S3 Bucket 
+              run: | 
+                if aws s3api head-bucket --bucket "${{ env.BUCKET_NAME }}" 2>/dev/null; then 
+                   echo "Bucket '${{ env.BUCKET_NAME }}' already exists." 
+                   else 
+                     echo "Bucket '${{ env.BUCKET_NAME }}' does not exist. Creating it now..." 
+                     
+                     if [ "${{ env.AWS_REGION }}" = "us-east-1" ]; then 
+                       aws s3api create-bucket \
+                         --bucket "${{ env.BUCKET_NAME }}" \
+                         --region ${{ env.AWS_REGION }} 
+                     else 
+                       aws s3api create-bucket \
+                       --bucket "${{ env.BUCKET_NAME }}" \
+                       --region ${{ env.AWS_REGION }} \
+                       --create-bucket-configuration \
+                       LocationConstraint=${{ env.AWS_REGION }} 
+                     fi 
+                fi
+
+            - name: Enable S3 Bucket Versioning
+              run: |
+                aws s3api put-bucket-versioning \
+                --bucket "${{ env.BUCKET_NAME }}" \
+                --versioning-configuration Status=Enabled
+
+            - name: Enable S3 Bucket Encryoptiom
+              run: |
+                aws s3api put-bucket-encryption \
+                  --bucket "${{ env.BUCKET_NAME }}" \
+                  --server-side-encryption-configuration \
+                  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+            - name: Block Public Access
+              run: |
+                aws s3api put-public-access-block \
+                  --bucket "${{ env.BUCKET_NAME }}" \
+                  --public-access-block-configuration \
+                  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+            - name: initialise terraform
+              working-directory: infrastructure
+              run: terraform init
+
+            - name: Terraform fmt
+              working-directory: infrastructure
+              run: terraform fmt
+
+            - name: Terraform Validate
+              working-directory: infrastructure
+              run: terraform validate
+
+            - name: Terraform Plan
+              working-directory: infrastructure
+              run: terraform plan
+
+            - name: Terraform Apply
+              id: terraform_apply
+              working-directory: infrastructure
+              run: terraform apply -auto-approve
+
+            - name: Get Terraform outputs
+              id: terraform
+              working-directory: infrastructure
+              run: |
+                echo "alb_controller_role_arn=$(terraform output -raw alb_controller_role_arn)" >> "$GITHUB_OUTPUT"
+
+            - name: Install kubectl
+              uses: azure/setup-kubectl@v4
+              with:
+                version: 'latest'
+
+            - name: Configure kubectl
+              run: |
+                aws eks update-kubeconfig \
+                --region "$AWS_REGION" --name "$CLUSTER_NAME"
+
+            - name: Verify cluster access
+              run: kubectl get pods -A
+
+            - name: Install Helm
+              uses: azure/setup-helm@v4
+
+            - name: Install AWS Load Balancer Controller
+              env:
+                ALB_CONTROLLER_ROLE_ARN: ${{ steps.terraform.outputs.alb_controller_role_arn }}
+              run: |
+                helm repo add eks https://aws.github.io/eks-charts
+                helm repo update
+
+                helm upgrade --install aws-load-balancer-controller \
+                  eks/aws-load-balancer-controller \
+                  --namespace kube-system \
+                  --create-namespace \
+                  --set clusterName="$CLUSTER_NAME" \
+                  --set serviceAccount.create=true \
+                  --set serviceAccount.name=aws-load-balancer-controller \
+                  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_CONTROLLER_ROLE_ARN"
+
+
+            - name: Apply Kubernetes manifests
+              run: kubectl apply -f k8s/
+
+
+            - name: Verify application deployment
+              run: |
+                kubectl get deployments -A
+                kubectl get services -A
+                kubectl get ingress -A
+                kubectl get pods -A
+
+
+            

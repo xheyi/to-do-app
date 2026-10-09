@@ -5,7 +5,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: frontend-nginx
-  namespace: reactapp
+  #namespace: reactapp
   labels:
     app: frontend
 data:
@@ -30,16 +30,11 @@ data:
         fastcgi_temp_path     /tmp/fastcgi_temp;
         uwsgi_temp_path       /tmp/uwsgi_temp;
         scgi_temp_path        /tmp/scgi_temp;
-
-        # K8s DNS (CoreDNS). "backend" is the Service name in this namespace.
-        # Optional resolver if you use variables; plain proxy_pass is enough here.
         server {
             listen 8080;
             server_name _;
             root /usr/share/nginx/html;
             index index.html;
-
-            # ---- reverse proxy to FastAPI Service ----
             location /api/ {
                 proxy_pass http://backend:8000/api/;
                 proxy_http_version 1.1;
@@ -60,8 +55,6 @@ data:
                 proxy_http_version 1.1;
                 proxy_set_header Host $host;
             }
-
-            # ---- static React (Vite build) ----
             location / {
                 try_files $uri $uri/ /index.html;
             }
@@ -72,7 +65,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: reactapp
+  #namespace: reactapp
   labels:
     app: frontend
 spec:
@@ -87,15 +80,12 @@ spec:
     spec:
       containers:
         - name: frontend
-          # Build & push, or load into kind/minikube:
-          #   podman build -t reactapp-frontend:latest ./frontend
-          image: reactapp-frontend:latest
+          image: xheyi/to-do-app-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8080
           volumeMounts:
-            # Override image nginx.conf so proxy target stays correct in-cluster
             - name: nginx-config
               mountPath: /etc/nginx/nginx.conf
               subPath: nginx.conf
@@ -128,11 +118,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
-  namespace: reactapp
+  #namespace: reactapp
   labels:
     app: frontend
 spec:
-  # ClusterIP + Ingress is typical; use NodePort for quick local demos without Ingress.
   type: ClusterIP
   selector:
     app: frontend

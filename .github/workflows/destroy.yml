@@ -1,0 +1,70 @@
+name: Destroy AWS Infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  BUCKET_NAME: ${{ vars.BUCKET_NAME }}
+  CLUSTER_NAME: ${{ vars.CLUSTER_NAME }}
+
+jobs:
+  destroy:
+    name: Destroy AWS Infrastructure
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infrastructure
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AUTH_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init -input=false -lockfile=readonly
+
+      - name: Verify AWS account
+        run: aws sts get-caller-identity
+        working-directory: .
+
+      - name: Create Destroy Plan
+        run: terraform plan -destroy -input=false -out=destroy.tfplan
+
+      - name: Upload Destroy Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-destroy-plan
+          path: infrastructure/destroy.tfplan
+          retention-days: 1
+
+      - name: Approve Infrastructure Destruction
+        uses: trstringer/manual-approval@v1
+        timeout-minutes: 60
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: ${{ github.repository_owner }}
+          minimum-approvals: 1
+          issue-title: Approve AWS Infrastructure Destruction
+          issue-body: Review the destroy plan in the workflow logs before approving.
+
+      - name: Destroy Infrastructure
+        run: terraform apply -input=false -auto-approve destroy.tfplan
+
+      - name: Destroy Completed
+        run: echo "Terraform destroy completed. Check AWS for any remaining resources."
