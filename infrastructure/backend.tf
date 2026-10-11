@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "xheyi_eks_terraform_state"
+    bucket = "xheyi-eks-terraform-state"
     key = "eks/terraform.tfstate"
     region = "eu-north-1"
     encrypt = true
