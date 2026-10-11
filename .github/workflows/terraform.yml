@@ -30,8 +30,6 @@ jobs:
 
             - name: setup terraform
               uses: hashicorp/setup-terraform@v4
-              with:
-                terraform_version: 4.0.0
 
             - name: Check and Create S3 Bucket 
               run: | 
