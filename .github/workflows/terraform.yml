@@ -130,12 +130,20 @@ jobs:
                   --set serviceAccount.name=aws-load-balancer-controller \
                   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_CONTROLLER_ROLE_ARN"
 
-            - name: Wait for AWS Load Balancer Controller to be ready
+            - name: Wait for AWS Load Balancer Controller webhook to be ready
               run: |
-                kubectl rollout status deployment/aws-load-balancer-controller -n kube-system --timeout=5m
+                echo "Waiting for AWS Load Balancer Controller pods to be ready..."
                 kubectl wait --for=condition=ready pod \
                   -l app.kubernetes.io/name=aws-load-balancer-controller \
                   -n kube-system --timeout=300s
+                
+                echo "Waiting for webhook service to have endpoints..."
+                kubectl wait --for=jsonpath='{.subsets[0].addresses[0].targetRef.name}' \
+                  endpoint/aws-load-balancer-webhook-service \
+                  -n kube-system --timeout=300s
+                
+                echo "Controller webhook is ready!"
+                sleep 10
 
             - name: Apply Kubernetes manifests
               run: kubectl apply -f k8s/
