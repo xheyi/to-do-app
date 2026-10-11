@@ -11,7 +11,7 @@ resource "aws_subnet" "public1" {
   cidr_block        = var.public_subnet1_cidr
   availability_zone = var.availability_zone1
     tags = {
-        kubernetes.io/role/elb = "1"
+        "kubernetes.io/role/elb" = "1"
     }
 }
 
@@ -21,7 +21,7 @@ resource "aws_subnet" "public2" {
   availability_zone = var.availability_zone2
 
   tags = {
-    kubernetes.io/role/elb = "1" 
+    "kubernetes.io/role/elb" = "1" 
   }
 }
 
@@ -31,7 +31,7 @@ resource "aws_subnet" "private1" {
   availability_zone = var.availability_zone1
   
   tags = {
-    kubernetes.io/role/internal-elb = "1"
+    "kubernetes.io/role/internal-elb" = "1"
   }
 }
 
@@ -40,7 +40,7 @@ resource "aws_subnet" "private2" {
   cidr_block        = var.private_subnet2_cidr
   availability_zone = var.availability_zone2
     tags = {
-        kubernetes.io/role/internal-elb = "1"
+        "kubernetes.io/role/internal-elb" = "1"
     }
 }
 
