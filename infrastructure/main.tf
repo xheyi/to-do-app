@@ -105,7 +105,7 @@ resource "aws_security_group" "fargate" {
 
 resource "aws_vpc_security_group_ingress_rule" "allow_http_fargate" {
   security_group_id = aws_security_group.fargate.id
-  referenced_security_group_id = aws_security_group.main.id
+  referenced_security_group_id = aws_security_group.fargate.id
   ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
