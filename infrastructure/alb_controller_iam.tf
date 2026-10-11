@@ -24,7 +24,7 @@ data "aws_eks_cluster" "main" {
 
 # Create the IAM policy for AWS Load Balancer Controller
 resource "aws_iam_policy" "alb_controller" {
-  name        = "AWSLoadBalancerControllerIAMPolicy"
+  name        = "LoadBalancerControllerIAMPolicy"
   description = "Permissions for AWS Load Balancer Controller"
 
   policy = file("${path.module}/iam_policy.json")

@@ -2,6 +2,10 @@ resource "aws_eks_cluster" "main" {
   name     = "to-do-app-cluster"
   role_arn = aws_iam_role.eks_cluster.arn
 
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+  }
+  
   vpc_config {
     subnet_ids = [
       aws_subnet.public1.id,
