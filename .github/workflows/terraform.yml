@@ -85,7 +85,8 @@ jobs:
 
             - name: Terraform Plan
               working-directory: infrastructure
-              run: terraform plan
+              run: terraform plan -out=tfplan
+
 
             - name: Terraform Apply
               id: terraform_apply
@@ -98,6 +99,17 @@ jobs:
               run: |
                 echo "alb_controller_role_arn=$(terraform output -raw alb_controller_role_arn)" >> "$GITHUB_OUTPUT"
 
+            - name: Wait for Fargate profiles to be active 
+              run: |
+                aws eks wait fargate-profile-active \
+                  --cluster-name "$CLUSTER_NAME" \
+                  --fargate-profile-name "kube-system-fargate-profile" \
+                  --region "$AWS_REGION"
+                aws eks wait fargate-profile-active \
+                  --cluster-name "$CLUSTER_NAME" \
+                  --fargate-profile-name "app-fargate-profile" \
+                  --region "$AWS_REGION"
+
             - name: Install kubectl
               uses: azure/setup-kubectl@v4
               with:
@@ -106,7 +118,8 @@ jobs:
             - name: Configure kubectl
               run: |
                 aws eks update-kubeconfig \
-                --region "$AWS_REGION" --name "$CLUSTER_NAME"
+                --name "$CLUSTER_NAME" \
+                --region "$AWS_REGION"
 
             - name: Verify cluster access
               run: kubectl get pods -A
@@ -128,36 +141,17 @@ jobs:
                   --set clusterName="$CLUSTER_NAME" \
                   --set serviceAccount.create=true \
                   --set serviceAccount.name=aws-load-balancer-controller \
-                  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_CONTROLLER_ROLE_ARN"
+                  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_CONTROLLER_ROLE_ARN" \
+                  --set region=eu-north-1 \
+                  --set vpcId=vpc-05e73574e677375af \
+                  --wait \                
+                  --timeout 5m
 
-            - name: Wait for ALB Controller webhook endpoints to be ready
+            - name: Wait for ALB controller to be ready
               run: |
-                echo "Waiting for ALB controller webhook to have endpoints..."
-                max_attempts=60
-                attempt=0
-                
-                while [ $attempt -lt $max_attempts ]; do
-                  endpoints=$(kubectl get endpoints aws-load-balancer-webhook-service -n kube-system -o jsonpath='{.subsets[0].addresses[0].targetRef.name}' 2>/dev/null)
-                  
-                  if [ -n "$endpoints" ]; then
-                    echo "✓ Webhook endpoints are ready: $endpoints"
-                    sleep 5  # Extra buffer to ensure webhook is fully responsive
-                    break
-                  fi
-                  
-                  echo "Waiting for webhook endpoints... (attempt $((attempt+1))/$max_attempts)"
-                  sleep 2
-                  attempt=$((attempt+1))
-                done
-                
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "✗ Webhook endpoints never became available"
-                  echo "Debugging info:"
-                  kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
-                  kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller --tail=20
-                  exit 1
-                fi
-
+                kubectl rollout status deployment/aws-load-balancer-controller \
+                  -n kube-system \
+                  --timeout=5m
 
             - name: Apply Kubernetes manifests
               run: kubectl apply -f k8s/

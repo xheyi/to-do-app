@@ -5,7 +5,7 @@ resource "aws_eks_cluster" "main" {
   access_config {
     authentication_mode = "API_AND_CONFIG_MAP"
   }
-  
+
   vpc_config {
     subnet_ids = [
       aws_subnet.public1.id,
@@ -30,8 +30,28 @@ resource "aws_eks_fargate_profile" "main" {
   ]
 
   selector {
-    namespace = "default"
+    namespace = "kube-system"
   }
 
   depends_on = [aws_eks_cluster.main]
+}
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "coredns"
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  configuration_values = jsonencode({
+    computeType = "Fargate"
+  })
+
+  depends_on = [
+    aws_eks_fargate_profile.kube_system  # Must exist first
+  ]
+}
+
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "vpc-cni"
+  depends_on   = [aws_eks_fargate_profile.kube_system]
 }
