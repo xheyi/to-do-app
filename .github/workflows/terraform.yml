@@ -142,6 +142,20 @@ jobs:
 
                 echo "CoreDNS is running on Fargate"
 
+            - name: Clean up stale ALB controller webhook
+              run: |
+                # Remove stale webhook configs from any previous install
+                # Helm will recreate them correctly with the new cert
+                kubectl delete validatingwebhookconfiguration \
+                  aws-load-balancer-webhook \
+                  --ignore-not-found=true
+
+                kubectl delete mutatingwebhookconfiguration \
+                  aws-load-balancer-webhook \
+                  --ignore-not-found=true
+
+                echo "Stale webhook configurations removed"
+
 
             - name: Install Helm
               uses: azure/setup-helm@v4
