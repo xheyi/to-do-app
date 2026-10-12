@@ -30,8 +30,19 @@ resource "aws_eks_fargate_profile" "main" {
   ]
 
   selector {
-    namespace = "kube-system"
+    namespace = "default"
   }
+
+  depends_on = [aws_eks_cluster.main]
+}
+
+resource "aws_eks_fargate_profile" "kube_system" {
+  cluster_name           = aws_eks_cluster.main.name
+  fargate_profile_name   = "kube-system-fargate-profile"
+  pod_execution_role_arn = aws_iam_role.fargate_pod_execution.arn
+  subnet_ids             = [aws_subnet.private1.id, aws_subnet.private2.id]
+
+  selector { namespace = "kube-system" }
 
   depends_on = [aws_eks_cluster.main]
 }
@@ -46,12 +57,19 @@ resource "aws_eks_addon" "coredns" {
   })
 
   depends_on = [
-    aws_eks_fargate_profile.main
+    aws_eks_fargate_profile.kube_system
   ]
 }
 
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "vpc-cni"
-  depends_on   = [aws_eks_fargate_profile.main]
+  depends_on   = [aws_eks_fargate_profile.kube_system]
+}
+
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "kube-proxy"
+  depends_on   = [aws_eks_fargate_profile.kube_system]
 }

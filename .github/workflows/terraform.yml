@@ -91,7 +91,7 @@ jobs:
             - name: Terraform Apply
               id: terraform_apply
               working-directory: infrastructure
-              run: terraform apply -auto-approve
+              run: terraform apply -auto-approve tfplan
 
             - name: Get Terraform outputs
               id: terraform
@@ -103,7 +103,7 @@ jobs:
               run: |
                 aws eks wait fargate-profile-active \
                   --cluster-name "$CLUSTER_NAME" \
-                  --fargate-profile-name "app-fargate-profile" \
+                  --fargate-profile-name "kube-system-app-fargate-profile" \
                   --region "$AWS_REGION"
                 aws eks wait fargate-profile-active \
                   --cluster-name "$CLUSTER_NAME" \
@@ -144,7 +144,7 @@ jobs:
                   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$ALB_CONTROLLER_ROLE_ARN" \
                   --set region=eu-north-1 \
                   --set vpcId=vpc-05e73574e677375af \
-                  --wait \                
+                  --wait \
                   --timeout 5m
 
             - name: Wait for ALB controller to be ready
