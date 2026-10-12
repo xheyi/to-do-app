@@ -53,5 +53,5 @@ resource "aws_eks_addon" "coredns" {
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "vpc-cni"
-  depends_on   = [aws_eks_fargate_profile.kube_system]
+  depends_on   = [aws_eks_fargate_profile.main]
 }
