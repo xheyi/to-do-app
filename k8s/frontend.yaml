@@ -78,6 +78,11 @@ spec:
       labels:
         app: frontend
     spec:
+      tolerations:
+        - key: "eks.amazonaws.com/compute-type"
+          operator: "Equal"
+          value: "fargate"
+          effect: "NoSchedule"
       containers:
         - name: frontend
           image: xheyi/to-do-app-frontend:latest

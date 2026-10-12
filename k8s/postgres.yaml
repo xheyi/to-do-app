@@ -45,6 +45,11 @@ spec:
       labels:
         app: db
     spec:
+      tolerations:
+        - key: "eks.amazonaws.com/compute-type"
+          operator: "Equal"
+          value: "fargate"
+          effect: "NoSchedule"
       containers:
         - name: postgres
           image: docker.io/library/postgres:16-alpine
