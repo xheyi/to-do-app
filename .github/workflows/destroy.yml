@@ -37,7 +37,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init -input=false -lockfile=readonly
+        run: terraform init -input=false
 
       - name: Configure kubectl
         run: |
