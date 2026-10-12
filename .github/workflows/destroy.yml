@@ -39,6 +39,23 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false -lockfile=readonly
 
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region "$AWS_REGION" \
+            --name "$CLUSTER_NAME"
+
+      - name: Delete Ingress and wait for ALB cleanup
+        run: |
+          echo "Deleting application Ingress..."
+
+          kubectl delete ingress --all \
+            --namespace default \
+            --wait=true \
+            --timeout=5m
+
+          echo "Ingress deletion completed."
+
       - name: Verify AWS account
         run: aws sts get-caller-identity
         working-directory: .
