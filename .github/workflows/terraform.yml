@@ -57,7 +57,7 @@ jobs:
                 --bucket "${{ env.BUCKET_NAME }}" \
                 --versioning-configuration Status=Enabled
 
-            - name: Enable S3 Bucket Encryoptiom
+            - name: Enable S3 Bucket Encryption
               run: |
                 aws s3api put-bucket-encryption \
                   --bucket "${{ env.BUCKET_NAME }}" \
@@ -145,7 +145,7 @@ jobs:
                   --set region=eu-north-1 \
                   --set vpcId=vpc-05e73574e677375af \
                   --wait \
-                  --timeout 5m
+                  --timeout 10m
 
             - name: Wait for ALB controller to be ready
               run: |
@@ -153,9 +153,46 @@ jobs:
                   -n kube-system \
                   --timeout=5m
 
-            - name: Apply Kubernetes manifests
-              run: kubectl apply -f k8s/
+            - name: Wait for webhook to be ready
+              run: |
+                echo "Waiting for AWS Load Balancer webhook to respond..."
+                max_attempts=30
+                attempt=0
+                while [ $attempt -lt $max_attempts ]; do
+                  if kubectl get validatingwebhookconfigurations aws-load-balancer-webhook &>/dev/null; then
+                    echo "Webhook configuration found, waiting for webhook to be functional..."
+                    sleep 15
+                    break
+                  fi
+                  echo "Waiting for webhook ($((attempt+1))/$max_attempts)..."
+                  sleep 5
+                  ((attempt++))
+                done
+                
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "Warning: Webhook not found, proceeding anyway..."
+                fi
 
+            - name: Apply Kubernetes manifests
+              run: |
+                max_attempts=3
+                attempt=0
+                while [ $attempt -lt $max_attempts ]; do
+                  echo "Applying manifests (attempt $((attempt+1))/$max_attempts)..."
+                  if kubectl apply -f k8s/; then
+                    echo "Successfully applied manifests"
+                    exit 0
+                  fi
+                  
+                  if [ $attempt -lt $((max_attempts-1)) ]; then
+                    echo "Apply failed, retrying in 15 seconds..."
+                    sleep 15
+                  fi
+                  ((attempt++))
+                done
+                
+                echo "Failed to apply manifests after $max_attempts attempts"
+                exit 1
 
             - name: Verify application deployment
               run: |
