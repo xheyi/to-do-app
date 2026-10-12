@@ -124,6 +124,25 @@ jobs:
             - name: Verify cluster access
               run: kubectl get pods -A
 
+            - name: Patch CoreDNS for Fargate
+              run: |
+                # Remove the ec2 compute-type annotation so CoreDNS schedules on Fargate
+                kubectl patch deployment coredns \
+                  -n kube-system \
+                  --type json \
+                  -p='[{"op":"remove","path":"/spec/template/metadata/annotations/eks.amazonaws.com~1compute-type"}]'
+                  || true
+
+                kubectl rollout restart deployment/coredns -n kube-system
+
+                # Wait for CoreDNS to be fully running before proceeding
+                kubectl rollout status deployment/coredns \
+                  -n kube-system \
+                  --timeout=5m
+
+                echo "CoreDNS is running on Fargate"
+
+
             - name: Install Helm
               uses: azure/setup-helm@v4
 
@@ -153,29 +172,6 @@ jobs:
                   -n kube-system \
                   --timeout=5m
 
-            - name: Wait for webhook to be ready
-              run: |
-                echo "Waiting for AWS Load Balancer webhook to respond..."
-                max_attempts=60
-                attempt=0
-                while [ $attempt -lt $max_attempts ]; do
-                  if kubectl get validatingwebhookconfigurations aws-load-balancer-webhook &>/dev/null; then
-                    echo "Webhook configuration found, waiting for webhook to be functional..."
-                    # Check if the webhook service endpoint is responding
-                    if kubectl exec -n kube-system deployment/aws-load-balancer-controller -- sh -c "curl -sk https://aws-load-balancer-webhook-service.kube-system.svc:443/health" &>/dev/null; then
-                      echo "Webhook is responding"
-                      sleep 10
-                      break
-                    fi
-                  fi
-                  echo "Waiting for webhook ($((attempt+1))/$max_attempts)..."
-                  sleep 3
-                  ((attempt++))
-                done
-                
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "Warning: Webhook not responding, proceeding anyway..."
-                fi
 
             - name: Apply Kubernetes manifests
               run: |
@@ -187,16 +183,15 @@ jobs:
                     echo "Successfully applied manifests"
                     exit 0
                   fi
-                  
-                  if [ $attempt -lt $((max_attempts-1)) ]; then
+                  ((attempt++))                          # ← moved here
+                  if [ $attempt -lt $max_attempts ]; then
                     echo "Apply failed, retrying in 20 seconds..."
                     sleep 20
                   fi
-                  ((attempt++))
                 done
-                
                 echo "Failed to apply manifests after $max_attempts attempts"
                 exit 1
+
 
             - name: Verify application deployment
               run: |
