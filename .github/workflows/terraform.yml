@@ -103,7 +103,7 @@ jobs:
               run: |
                 aws eks wait fargate-profile-active \
                   --cluster-name "$CLUSTER_NAME" \
-                  --fargate-profile-name "kube-system-app-fargate-profile" \
+                  --fargate-profile-name "kube-system-fargate-profile" \
                   --region "$AWS_REGION"
                 aws eks wait fargate-profile-active \
                   --cluster-name "$CLUSTER_NAME" \
