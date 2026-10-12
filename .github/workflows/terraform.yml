@@ -156,26 +156,30 @@ jobs:
             - name: Wait for webhook to be ready
               run: |
                 echo "Waiting for AWS Load Balancer webhook to respond..."
-                max_attempts=30
+                max_attempts=60
                 attempt=0
                 while [ $attempt -lt $max_attempts ]; do
                   if kubectl get validatingwebhookconfigurations aws-load-balancer-webhook &>/dev/null; then
                     echo "Webhook configuration found, waiting for webhook to be functional..."
-                    sleep 15
-                    break
+                    # Check if the webhook service endpoint is responding
+                    if kubectl exec -n kube-system deployment/aws-load-balancer-controller -- sh -c "curl -sk https://aws-load-balancer-webhook-service.kube-system.svc:443/health" &>/dev/null; then
+                      echo "Webhook is responding"
+                      sleep 10
+                      break
+                    fi
                   fi
                   echo "Waiting for webhook ($((attempt+1))/$max_attempts)..."
-                  sleep 5
+                  sleep 3
                   ((attempt++))
                 done
                 
                 if [ $attempt -eq $max_attempts ]; then
-                  echo "Warning: Webhook not found, proceeding anyway..."
+                  echo "Warning: Webhook not responding, proceeding anyway..."
                 fi
 
             - name: Apply Kubernetes manifests
               run: |
-                max_attempts=3
+                max_attempts=5
                 attempt=0
                 while [ $attempt -lt $max_attempts ]; do
                   echo "Applying manifests (attempt $((attempt+1))/$max_attempts)..."
@@ -185,8 +189,8 @@ jobs:
                   fi
                   
                   if [ $attempt -lt $((max_attempts-1)) ]; then
-                    echo "Apply failed, retrying in 15 seconds..."
-                    sleep 15
+                    echo "Apply failed, retrying in 20 seconds..."
+                    sleep 20
                   fi
                   ((attempt++))
                 done
