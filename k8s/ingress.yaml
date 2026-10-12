@@ -1,6 +1,3 @@
-# Optional single entrypoint (cluster Ingress controller required).
-# Traffic: Internet/client → Ingress → Service/frontend → nginx → /api → Service/backend
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -9,14 +6,14 @@ metadata:
   labels:
     app: reactapp
   annotations:
+    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 spec:
-  ingressClassName:
+  ingressClassName: alb
   rules:
-    - host: reactapp.local
-      http:
+    - http:
         paths:
           - path: /
             pathType: Prefix
