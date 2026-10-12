@@ -46,7 +46,7 @@ resource "aws_eks_addon" "coredns" {
   })
 
   depends_on = [
-    aws_eks_fargate_profile.kube_system  # Must exist first
+    aws_eks_fargate_profile.main
   ]
 }
 
