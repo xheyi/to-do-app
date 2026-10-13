@@ -37,4 +37,4 @@ coverage/
 pgdata/
 
 
-terraform/
+terraform/docker-compose.yml
