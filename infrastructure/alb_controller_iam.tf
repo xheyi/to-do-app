@@ -14,9 +14,6 @@ resource "aws_iam_openid_connect_provider" "eks" {
   ]
 }
 
-# Get the AWS account ID
-data "aws_caller_identity" "current" {}
-
 # Get the EKS cluster's OIDC issuer
 data "aws_eks_cluster" "main" {
   name = aws_eks_cluster.main.name
