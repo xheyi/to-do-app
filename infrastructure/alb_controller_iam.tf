@@ -14,11 +14,6 @@ resource "aws_iam_openid_connect_provider" "eks" {
   ]
 }
 
-# Get the EKS cluster's OIDC issuer
-data "aws_eks_cluster" "main" {
-  name = aws_eks_cluster.main.name
-}
-
 # Create the IAM policy for AWS Load Balancer Controller
 resource "aws_iam_policy" "alb_controller" {
   name        = "LoadBalancerControllerIAMPolicy"
